@@ -1,11 +1,19 @@
 from matplotlib import pyplot as plt
 import numpy as np
 
-from genetic_methods import build_next_generation, calc_fitness
+from genetic_methods import build_next_generation, calc_fitness, AlgorithmMethods, AlgorithmParams
+from genetic_methods_selection import SelectionFunction, rank_selection, roulette_wheel_selection, tournament_selection
 from graph import describe_graph, generate_population, generate_random_graph
+from list2.genetic_methods_crossover import CrossoverFunction, single_point_crossover, two_point_crossover, \
+    uniform_crossover
 
 
-def run_algorithm(graph: np.ndarray, population_size: int, mutation_prob: float, crossover_prob: float):
+def run_algorithm(
+        graph: np.ndarray,
+        algorithm_params: AlgorithmParams,
+        algorithm_methods: AlgorithmMethods
+):
+    population_size, _, _, _ = algorithm_params
     graph_size: int = graph[0].size
     current_num_colors = graph_size # colors number will be decreased in the loop, now we start with easiest solution
     population = generate_population(population_size, graph_size, current_num_colors)
@@ -32,16 +40,27 @@ def run_algorithm(graph: np.ndarray, population_size: int, mutation_prob: float,
         if current_best_fitness == 0:
             # in next iteration try less colors
             current_num_colors -= 1 
-            # generate new population for less colors
+            # generate new population for fewer colors
             population = generate_population(population_size, graph_size, current_num_colors)
         else:
-            population = build_next_generation(population, graph, mutation_prob, crossover_prob, current_num_colors)
+            population = build_next_generation(
+                population,
+                graph,
+                current_num_colors,
+                algorithm_params,
+                algorithm_methods
+            )
 
     return best_solution, iterations
 
-def run_single_params_set(graph: np.ndarray, population_size: int, mut_prob: float, crossover_prob: float):
-    print(f'Start testing: mut_prob={mut_prob}, crossover_prob={crossover_prob}')
-    best_solution, iterations = run_algorithm(graph, population_size, mut_prob, crossover_prob)
+def run_single_params_set(
+        graph: np.ndarray,
+        algorithm_params: AlgorithmParams,
+        algorithm_methods: AlgorithmMethods,
+):
+    population_size, mutation_prob, crossover_prob, inv_prob = algorithm_params
+    print(f'Start testing: mut_prob={mut_prob}, crossover_prob={crossover_prob}, inv_prob={inv_prob}')
+    best_solution, iterations = run_algorithm(graph, algorithm_params, algorithm_methods)
     print(f'Best solution: {best_solution[2]} colors in {len(iterations)} generations')
     return best_solution, iterations
 
@@ -58,26 +77,34 @@ def plot_iterations(iterations, mutation_prob, crossover_prob, ax):
 if __name__ == "__main__":
     graph = generate_random_graph(48)
     describe_graph(graph)
-    
-    mutation_prob = [0.05, 0.075, 0.1, 0.125, 0.15]
-    crossover_prob = [0.1, 0.3, 0.5, 0.7, 0.9]
+
     population_size = 20
-    fig, axes = plt.subplots(len(mutation_prob), len(crossover_prob), figsize=(15, 10))
+    tested_mutation_prob = [0.125]
+    # tested_mutation_prob = [0.05, 0.075, 0.1, 0.125, 0.15]
+    tested_crossover_prob = [0.3, 0.7]
+    # tested_crossover_prob = [0.1, 0.3, 0.5, 0.7, 0.9]
+    tested_inversion_prob = [0.05, 0.075, 0.1, 0.125, 0.15]
+
+    tested_selection_functions = [rank_selection, roulette_wheel_selection, tournament_selection]
+    tested_crossover_functions = [single_point_crossover, two_point_crossover, uniform_crossover]
+
+    fig, axes = plt.subplots(len(tested_mutation_prob), len(tested_crossover_prob), figsize=(15, 10))
     axes = axes.flatten()
+
     solutions = []
 
-    for i, mut_prob in enumerate(mutation_prob):
-        for j, cross_prob in enumerate(crossover_prob):
-            best_solution, iterations = run_single_params_set(graph, population_size, mut_prob, cross_prob)
-            plot_iterations(iterations, mut_prob, cross_prob, axes[i * len(crossover_prob) + j])
-            solutions.append((best_solution[2], len(iterations), (mut_prob, cross_prob)))
+    for i, mut_prob in enumerate(tested_mutation_prob):
+        for j, cross_prob in enumerate(tested_crossover_prob):
+            for inv_prob in tested_inversion_prob:
+                for selection_function in tested_selection_functions:
+                    for crossover_function in tested_crossover_functions:
+                        current_alg_params: AlgorithmParams = population_size, mut_prob, cross_prob, inv_prob
+                        current_alg_methods: AlgorithmMethods = selection_function, crossover_function
+                        best_solution, iterations = run_single_params_set(graph, current_alg_params, current_alg_methods)
+                        plot_iterations(iterations, mut_prob, cross_prob, axes[i * len(tested_crossover_prob) + j])
+                        solutions.append((best_solution[2], len(iterations), (mut_prob, cross_prob)))
 
     sorted_solutions = sorted(solutions, key=lambda x: x[0])
-
-    # with open('best_solutions.txt', 'w', encoding='utf-8') as f:
-    #     f.write("Best solutions:\n")
-    #     for i, sol in enumerate(sorted_solutions):
-    #         f.write(f"{i+1}. {sol[0]} in {sol[1]} generations. mut_prob={sol[2][0]}, cross_prob={sol[2][1]}\n")
 
     print("Solutions ranking:")
     for i, sol in enumerate(sorted_solutions):

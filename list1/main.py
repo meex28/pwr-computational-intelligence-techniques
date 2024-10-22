@@ -32,7 +32,7 @@ def run_algorithm(graph: np.ndarray, population_size: int, mutation_prob: float,
         if current_best_fitness == 0:
             # in next iteration try less colors
             current_num_colors -= 1 
-            # generate new population for less colors
+            # generate new population for fewer colors
             population = generate_population(population_size, graph_size, current_num_colors)
         else:
             population = build_next_generation(population, graph, mutation_prob, crossover_prob, current_num_colors)
@@ -73,11 +73,6 @@ if __name__ == "__main__":
             solutions.append((best_solution[2], len(iterations), (mut_prob, cross_prob)))
 
     sorted_solutions = sorted(solutions, key=lambda x: x[0])
-
-    # with open('best_solutions.txt', 'w', encoding='utf-8') as f:
-    #     f.write("Best solutions:\n")
-    #     for i, sol in enumerate(sorted_solutions):
-    #         f.write(f"{i+1}. {sol[0]} in {sol[1]} generations. mut_prob={sol[2][0]}, cross_prob={sol[2][1]}\n")
 
     print("Solutions ranking:")
     for i, sol in enumerate(sorted_solutions):

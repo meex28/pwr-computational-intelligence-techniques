@@ -1,32 +1,18 @@
-from typing import List
+from typing import List, Tuple
 import random
 
 import numpy as np
+from genetic_methods_selection import SelectionFunction
+from list2.genetic_method_fitness import calc_fitness
+from list2.genetic_methods_crossover import CrossoverFunction
 
 from util import random_choice
 
-def calc_fitness(chromosome: List[int], graph: np.ndarray) -> float:
-    conflicts: int = 0 # case when neighbour nodes has same color
-    num_nodes = len(chromosome)
+# [population_size, mutation_prob, crossover_prob, inversion_prob]
+AlgorithmParams = Tuple[int, float, float, float]
 
-    for i in range(num_nodes):
-        for j in range(i+1, num_nodes):
-            if graph[i][j] == 1 and chromosome[i] == chromosome[j]:
-                conflicts += 1
-
-    # we want to minimize fitness
-    return conflicts
-
-def single_point_crossover(parent1: List[int], parent2: List[int]) -> tuple[List[int], List[int]]:
-    if len(parent1) != len(parent2):
-        raise ValueError("Parents must have the same length")
-
-    crossover_point: int = random.randint(1, len(parent1) - 1)
-
-    child1: List[int] = parent1[:crossover_point] + parent2[crossover_point:]
-    child2: List[int] = parent2[:crossover_point] + parent1[crossover_point:]
-
-    return child1, child2
+# [selection_function, crossover_function]
+AlgorithmMethods = Tuple[SelectionFunction, CrossoverFunction]
 
 def mutate(chromosome: List[int], num_colors: int) -> List[int]:
     chromosome_copy = chromosome[::]
@@ -35,6 +21,13 @@ def mutate(chromosome: List[int], num_colors: int) -> List[int]:
     chromosome_copy[position] = random.randint(0, num_colors - 1)
 
     return chromosome_copy
+
+def inversion_operator(permutation: List[int]) -> List[int]:
+    if len(permutation) < 2:
+        return permutation.copy()
+    start, end = sorted(random.sample(range(len(permutation)), 2))
+    new_permutation = permutation[:start] + permutation[start:end + 1][::-1] + permutation[end + 1:]
+    return new_permutation
 
 def tournament_selection(population: List[List[int]], graph: np.ndarray, tournament_size: int = 2) -> List[List[int]]:
     population_size = len(population)
@@ -47,15 +40,23 @@ def tournament_selection(population: List[List[int]], graph: np.ndarray, tournam
 
     return new_population
 
-def build_next_generation(population: List[List[int]], graph: np.ndarray, mutation_prob: float, crossover_prob: float, num_colors: int) -> List[List[int]]:
-    selected_chromosomes = tournament_selection(population, graph)
+def build_next_generation(
+        population: List[List[int]],
+        graph: np.ndarray,
+        num_colors: int,
+        algorithm_params: AlgorithmParams,
+        algorithm_methods: AlgorithmMethods
+    ) -> List[List[int]]:
+    population_size, mutation_prob, crossover_prob, inv_prob = algorithm_params
+    selection_function, crossover_function = algorithm_methods
+    selected_chromosomes = selection_function(population, graph)
 
     # run crossover
     population_after_crossover = []
     random.shuffle(selected_chromosomes)
     for parent1, parent2 in zip(selected_chromosomes[::2], selected_chromosomes[1::2]):
         if random_choice(crossover_prob):
-            child1, child2 = single_point_crossover(parent1, parent2)
+            child1, child2 = crossover_function(parent1, parent2)
         else:
             child1, child2 = parent1, parent2
         population_after_crossover.append(child1)
@@ -64,9 +65,11 @@ def build_next_generation(population: List[List[int]], graph: np.ndarray, mutati
     # run mutations
     population_after_mutations = []
     for chromosome in population_after_crossover:
+        muted_chromosome = chromosome
         if random_choice(mutation_prob):
-            population_after_mutations.append(mutate(chromosome, num_colors))
-        else:
-            population_after_mutations.append(chromosome)
+            muted_chromosome = mutate(chromosome, num_colors)
+        if random_choice(inv_prob):
+            muted_chromosome = inversion_operator(muted_chromosome)
+        population_after_mutations.append(muted_chromosome)
 
     return population_after_mutations
