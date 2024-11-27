@@ -4,7 +4,6 @@ import random
 import numpy as np
 
 from list2.genetic_method_fitness import calc_fitness
-from util import random_choice
 
 SelectionFunction = Callable[[List[List[int]], np.ndarray], List[List[int]]]
 

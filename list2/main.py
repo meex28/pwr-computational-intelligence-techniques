@@ -6,6 +6,7 @@ from genetic_methods_selection import SelectionFunction, rank_selection, roulett
 from graph import describe_graph, generate_population, generate_random_graph
 from list2.genetic_methods_crossover import CrossoverFunction, single_point_crossover, two_point_crossover, \
     uniform_crossover
+from list2.util import save_json
 
 
 def run_algorithm(
@@ -13,9 +14,9 @@ def run_algorithm(
         algorithm_params: AlgorithmParams,
         algorithm_methods: AlgorithmMethods
 ):
-    population_size, _, _, _ = algorithm_params
+    population_size = algorithm_params[0]
     graph_size: int = graph[0].size
-    current_num_colors = graph_size # colors number will be decreased in the loop, now we start with easiest solution
+    current_num_colors = graph_size # colors number will be decreased in the loop, now we start with the easiest solution
     population = generate_population(population_size, graph_size, current_num_colors)
     gens_without_improvement_limit = 100 
     gens_without_improvement = 0
@@ -78,18 +79,13 @@ if __name__ == "__main__":
     graph = generate_random_graph(48)
     describe_graph(graph)
 
+    # params
     population_size = 20
-    tested_mutation_prob = [0.125]
-    # tested_mutation_prob = [0.05, 0.075, 0.1, 0.125, 0.15]
+    tested_mutation_prob = [0.125, 0.15]
     tested_crossover_prob = [0.3, 0.7]
-    # tested_crossover_prob = [0.1, 0.3, 0.5, 0.7, 0.9]
     tested_inversion_prob = [0.05, 0.075, 0.1, 0.125, 0.15]
-
     tested_selection_functions = [rank_selection, roulette_wheel_selection, tournament_selection]
     tested_crossover_functions = [single_point_crossover, two_point_crossover, uniform_crossover]
-
-    fig, axes = plt.subplots(len(tested_mutation_prob), len(tested_crossover_prob), figsize=(15, 10))
-    axes = axes.flatten()
 
     solutions = []
 
@@ -101,15 +97,19 @@ if __name__ == "__main__":
                         current_alg_params: AlgorithmParams = population_size, mut_prob, cross_prob, inv_prob
                         current_alg_methods: AlgorithmMethods = selection_function, crossover_function
                         best_solution, iterations = run_single_params_set(graph, current_alg_params, current_alg_methods)
-                        plot_iterations(iterations, mut_prob, cross_prob, axes[i * len(tested_crossover_prob) + j])
-                        solutions.append((best_solution[2], len(iterations), (mut_prob, cross_prob)))
+                        solution = {
+                            "params": {
+                                "mut_prob": mut_prob,
+                                "cross_prob": cross_prob,
+                                "inv_prob": inv_prob,
+                                "selection_function": selection_function.__name__,
+                                "crossover_function": crossover_function.__name__
+                            },
+                            "colors_num": best_solution[2],
+                            "generations": [colors_num for _, colors_num, _ in iterations],
+                            "generations_num": len(iterations),
+                        }
+                        solutions.append(solution)
 
-    sorted_solutions = sorted(solutions, key=lambda x: x[0])
-
-    print("Solutions ranking:")
-    for i, sol in enumerate(sorted_solutions):
-        print(f"{i+1}. {sol[0]} colors in {sol[1]} generations (mut_prob={sol[2][0]}, cross_prob={sol[2][1]})")
-
-    plt.tight_layout(h_pad=2.0)
-    plt.savefig('graph_coloring_gen_alg_results.png')
-
+    sorted_solutions = sorted(solutions, key=lambda x: x["colors_num"])
+    save_json(sorted_solutions, 'list2/results.json')
